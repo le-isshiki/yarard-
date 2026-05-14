@@ -1,4 +1,4 @@
-import makeWASocket, { fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import makeWASocket, { Browsers, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import { startHealthServer } from './server.js';
 import { logger } from './logger.js';
 import { getConfig } from './config.js';
@@ -25,21 +25,23 @@ async function makeSocket(): Promise<void> {
     version,
     auth: state,
     printQRInTerminal: false,
-    mobile: false,
     logger: logger.child({ component: 'baileys' }) as never,
-    browser: ['Theseus-Yarard', 'Chrome', '120.0.0'],
+    browser: Browsers.macOS('Safari'),
     syncFullHistory: false,
   });
 
   if (!state.creds.registered) {
+    const pairNumber = cfg.BOT_NUMBER ?? cfg.OWNER_NUMBER;
     setTimeout(async () => {
       try {
-        const code = await sock.requestPairingCode(cfg.OWNER_NUMBER);
+        const code = await sock.requestPairingCode(pairNumber);
         logger.info(
-          { code },
-          'PAIRING CODE — enter this in WhatsApp → Linked Devices → Link with phone number',
+          { code, phone: pairNumber },
+          'PAIRING CODE — open WhatsApp on the phone whose number matches `phone` above → Linked Devices → Link with phone number',
         );
-        process.stdout.write(`\n=== PAIRING CODE: ${code} ===\n\n`);
+        process.stdout.write(
+          `\n=== PAIRING CODE: ${code}  (enter on +${pairNumber}) ===\n\n`,
+        );
       } catch (err) {
         logger.error({ err }, 'failed to request pairing code');
       }

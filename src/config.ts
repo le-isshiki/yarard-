@@ -7,6 +7,10 @@ const schema = z.object({
   OWNER_NUMBER: z
     .string()
     .regex(/^\d{8,15}$/, 'OWNER_NUMBER must be digits only, e.g. 2348012345678'),
+  BOT_NUMBER: z
+    .string()
+    .regex(/^\d{8,15}$/, 'BOT_NUMBER must be digits only, e.g. 2348012345678')
+    .optional(),
   BOT_NAME: z.string().default('Theseus-Yarard'),
   PREFIX: z.string().default('.'),
   DAILY_TOKEN_CAP: z.coerce.number().int().positive().default(50000),
