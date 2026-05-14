@@ -1,0 +1,29 @@
+services:
+  - name: theseus-yarard
+    type: web
+    instance_type: nano
+    regions:
+      - was
+    git:
+      branch: master
+    ports:
+      - port: 8080
+        protocol: http
+    health_checks:
+      - path: /healthz
+        port: 8080
+        interval: 30
+        timeout: 10
+        grace_period: 60
+    scaling:
+      min: 1
+      max: 1
+    env:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8080"
+      # Secrets must be set in the Koyeb dashboard (do NOT commit them):
+      #   DATABASE_URL, GROQ_API_KEY, OPENAI_API_KEY, OWNER_NUMBER
+      # Optional:
+      #   BOT_PERSONA, REMOVEBG_API_KEY, DAILY_TOKEN_CAP, IMAGE_DAILY_CAP, ...
