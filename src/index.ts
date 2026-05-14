@@ -9,7 +9,10 @@ import {
   registerConnectionHandler,
   type ConnectionState,
 } from './handlers/connection.js';
+import { registerAntidelete } from './handlers/antidelete.js';
 import { backoffMs } from './lib/retry.js';
+import { handleUpsert, setBotJid } from './dispatcher/index.js';
+import { loadAll } from './commands/index.js';
 
 const cfg = getConfig();
 const connState: ConnectionState = { consecutiveFails: 0 };
@@ -44,6 +47,17 @@ async function makeSocket(): Promise<void> {
   }
 
   registerCallRejection(sock);
+  registerAntidelete(sock);
+
+  sock.ev.on('messages.upsert', (m) => {
+    handleUpsert(sock, m).catch((err) =>
+      logger.error({ err }, 'dispatcher handleUpsert crashed'),
+    );
+  });
+
+  sock.ev.on('connection.update', (u) => {
+    if (u.connection === 'open' && sock.user?.id) setBotJid(sock.user.id);
+  });
 
   registerConnectionHandler(
     sock,
@@ -66,6 +80,7 @@ async function makeSocket(): Promise<void> {
 async function main(): Promise<void> {
   await migrate();
   startHealthServer();
+  await loadAll();
   await makeSocket();
   logger.info('theseus-yarard online');
 }
