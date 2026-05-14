@@ -40,8 +40,25 @@ async function writeKey(key: string, value: unknown): Promise<void> {
   );
 }
 
-async function deleteKey(key: string): Promise<void> {
-  await query(`DELETE FROM auth_state WHERE key = $1`, [key]);
+async function writeKeys(entries: { key: string; value: unknown }[]): Promise<void> {
+  if (entries.length === 0) return;
+  const params: unknown[] = [];
+  const tuples: string[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const serialised = JSON.parse(JSON.stringify(entries[i]!.value, BufferJSON.replacer));
+    params.push(entries[i]!.key, JSON.stringify(serialised));
+    tuples.push(`($${i * 2 + 1}, $${i * 2 + 2}::jsonb, NOW())`);
+  }
+  await query(
+    `INSERT INTO auth_state (key, value, updated_at) VALUES ${tuples.join(', ')}
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+    params,
+  );
+}
+
+async function deleteKeys(keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+  await query(`DELETE FROM auth_state WHERE key = ANY($1::text[])`, [keys]);
 }
 
 export async function useNeonAuthState(): Promise<{
@@ -74,18 +91,19 @@ export async function useNeonAuthState(): Promise<{
         return out;
       },
       set: async (data) => {
-        const ops: Promise<void>[] = [];
+        const upserts: { key: string; value: unknown }[] = [];
+        const deletes: string[] = [];
         for (const category of Object.keys(data) as (keyof typeof data)[]) {
           const inner = data[category] as Record<string, unknown> | undefined;
           if (!inner) continue;
           for (const id of Object.keys(inner)) {
             const key = `${category}-${id}`;
             const v = inner[id];
-            if (v == null) ops.push(deleteKey(key));
-            else ops.push(writeKey(key, v));
+            if (v == null) deletes.push(key);
+            else upserts.push({ key, value: v });
           }
         }
-        await Promise.all(ops);
+        await Promise.all([writeKeys(upserts), deleteKeys(deletes)]);
       },
     },
   };

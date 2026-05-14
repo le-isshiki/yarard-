@@ -28,6 +28,9 @@ async function makeSocket(): Promise<void> {
     logger: logger.child({ component: 'baileys' }) as never,
     browser: Browsers.macOS('Safari'),
     syncFullHistory: false,
+    markOnlineOnConnect: false,
+    defaultQueryTimeoutMs: 120_000,
+    keepAliveIntervalMs: 15_000,
   });
 
   if (!state.creds.registered) {
