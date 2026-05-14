@@ -50,7 +50,8 @@ Session is persisted in Neon. Restart the bot and it reconnects without re-pairi
    - `DATABASE_URL` (Neon Postgres connection string with `?sslmode=require`)
    - `GROQ_API_KEY`
    - `OPENAI_API_KEY`
-   - `OWNER_NUMBER` (your bot's phone number in international format, digits only, e.g. `2348012345678`)
+   - `OWNER_NUMBER` — **your personal WhatsApp number**, the account that gets `.broadcast` / `.sudo` permissions (digits only, international, no `+`, e.g. `2348012345678`).
+   - `BOT_NUMBER` — *(only if different from `OWNER_NUMBER`)* the bot's dedicated WhatsApp number, the phone you'll enter the pairing code on. If your bot's account *is* your personal number, leave this unset.
    - Optional: `BOT_PERSONA`, `REMOVEBG_API_KEY`, `DAILY_TOKEN_CAP`, `IMAGE_DAILY_CAP`, `MEMORY_WINDOW`, `MEMORY_COMPRESS_AT`, `BOT_NAME`, `PREFIX`
 4. **Service config**: instance type `nano`, region nearest you, scaling **1 instance fixed** (do not autoscale — Baileys is single-session), health check at `/healthz`.
 5. Deploy. Watch the build + runtime logs. When the bot prints `=== PAIRING CODE: XXXXXXXX ===`, pair it via WhatsApp → Linked Devices.
@@ -66,7 +67,8 @@ After that the bot runs autonomously. Redeploys reuse the existing session in Ne
 | `DATABASE_URL` | yes | — | Neon Postgres URL |
 | `GROQ_API_KEY` | yes | — | Groq API key |
 | `OPENAI_API_KEY` | yes | — | OpenAI API key (`.imagine`, `.tts` only) |
-| `OWNER_NUMBER` | yes | — | International format, no `+`, e.g. `2348012345678` |
+| `OWNER_NUMBER` | yes | — | Your personal number — gets owner permissions. Digits only, no `+`. |
+| `BOT_NUMBER` | no | `OWNER_NUMBER` | The bot's dedicated WhatsApp number — phone you'll pair on. Set only if different from `OWNER_NUMBER`. |
 | `BOT_NAME` | no | `Theseus-Yarard` | Display name |
 | `PREFIX` | no | `.` | Command prefix |
 | `DAILY_TOKEN_CAP` | no | `50000` | Per-contact daily token cap |
