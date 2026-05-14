@@ -12,6 +12,22 @@ import { logger } from '../logger.js';
 const DELETED = Symbol('deleted');
 type CacheEntry = unknown | typeof DELETED;
 
+// Module-scope state. Shared across every makeSocket() / useNeonAuthState()
+// call in the same Node process so that on a 515 "restart required"
+// reconnect the new socket sees the SAME creds object Baileys just
+// mutated during pairing — even if the async DB persist hasn't flushed
+// yet. Across process restarts these are rebuilt from DB.
+let credsSingleton: AuthenticationCreds | null = null;
+let keysCache: Map<string, CacheEntry> | null = null;
+let persistChain: Promise<unknown> = Promise.resolve();
+
+function queueWrite(op: () => Promise<unknown>): void {
+  persistChain = persistChain
+    .catch(() => {})
+    .then(op)
+    .catch((err) => logger.warn({ err }, 'auth_state persist failed'));
+}
+
 async function readKey<T>(key: string): Promise<T | null> {
   const { rows } = await query<{ value: unknown }>(
     `SELECT value FROM auth_state WHERE key = $1`,
@@ -69,23 +85,15 @@ export async function useNeonAuthState(): Promise<{
   saveCreds: () => Promise<void>;
   clear: () => Promise<void>;
 }> {
-  const credsRow = await readKey<AuthenticationCreds>('creds');
-  const creds = credsRow ?? initAuthCreds();
-
-  // Write-through in-memory cache. Reads hit memory first (zero-latency,
-  // consistent with the last write). Writes update memory synchronously,
-  // then persist async. Without this, the signal protocol's tight
-  // write→read sequences race against Neon round-trip latency and lose
-  // pre-keys / sessions, producing PreKeyError / "No session record".
-  const cache = new Map<string, CacheEntry>();
-  let persistChain: Promise<unknown> = Promise.resolve();
-
-  const queueWrite = (op: () => Promise<unknown>): void => {
-    persistChain = persistChain
-      .catch(() => {})
-      .then(op)
-      .catch((err) => logger.warn({ err }, 'auth_state persist failed'));
-  };
+  if (!credsSingleton) {
+    const fromDb = await readKey<AuthenticationCreds>('creds');
+    credsSingleton = fromDb ?? initAuthCreds();
+  }
+  if (!keysCache) {
+    keysCache = new Map<string, CacheEntry>();
+  }
+  const creds = credsSingleton;
+  const cache = keysCache;
 
   const state: AuthenticationState = {
     creds,
@@ -143,10 +151,12 @@ export async function useNeonAuthState(): Promise<{
   return {
     state,
     saveCreds: async () => {
-      queueWrite(() => writeKey('creds', state.creds));
+      queueWrite(() => writeKey('creds', creds));
     },
     clear: async () => {
       cache.clear();
+      credsSingleton = null;
+      keysCache = null;
       await query(`TRUNCATE auth_state`);
       logger.warn('auth_state truncated');
     },
