@@ -50,7 +50,8 @@ One Node.js + TypeScript process on Koyeb. It boots, runs idempotent DB migratio
 | DB | Neon Postgres via `@neondatabase/serverless` |
 | Chat LLM | `groq-sdk` → `llama-3.3-70b-versatile` |
 | Voice-in | Groq `whisper-large-v3-turbo` |
-| Images | `openai` SDK → `gpt-image-1` (only for `.imagine`) |
+| Images | `openai` SDK → `gpt-image-1` (`.imagine`) |
+| TTS | `openai` SDK → `tts-1` (`.tts`) |
 | Logs | `pino` (structured JSON) |
 | Tests | `vitest` |
 | Container | Distroless Node 20 base, multi-stage build |
@@ -228,8 +229,9 @@ CREATE TABLE IF NOT EXISTS blocked_jids (
 ```
 
 **Notes.**
-- Daily token cap default: **50 000 tokens** (`DAILY_TOKEN_CAP`).
-- `.imagine` daily cap default: **5 per contact** (`IMAGE_DAILY_CAP`).
+- Daily token cap default: **50 000 tokens** per contact per UTC day (`DAILY_TOKEN_CAP`). "Tokens" here means the **sum of input + output tokens** reported in the Groq response's `usage` object — accounted only on successful calls.
+- `.imagine` daily cap default: **5 per contact** per UTC day (`IMAGE_DAILY_CAP`).
+- Day boundary is UTC for both caps (matches the cap-exceeded reply text).
 - Auto-delete of `conversations` rows happens inside the compress step (no separate cron).
 - No row-level encryption. Neon TLS in transit, Postgres at rest. Conversation content is plaintext in the DB — accepted risk.
 
@@ -311,7 +313,7 @@ Custom implementation mirroring Baileys' `useMultiFileAuthState` API; same `{ st
 |---|---|---|---|
 | `DATABASE_URL` | ✓ | — | Neon Postgres URL |
 | `GROQ_API_KEY` | ✓ | — | |
-| `OPENAI_API_KEY` | ✓ | — | Only used by `.imagine` |
+| `OPENAI_API_KEY` | ✓ | — | Used by `.imagine` and `.tts` |
 | `OWNER_NUMBER` | ✓ | — | International format, no `+` |
 | `BOT_NAME` | — | `Theseus-Yarard` | |
 | `PREFIX` | — | `.` | Command prefix |
@@ -388,7 +390,7 @@ Real WhatsApp delivery, real Groq/OpenAI billing. Manual smoke after each deploy
 ## 10. Open questions / deferred decisions
 
 - Bot persona text — keeping the built-in default for v1. Tweakable via `BOT_PERSONA` env var without code change.
-- `.tts` provider — Groq doesn't currently expose TTS in the OpenAI-compatible surface; v1 will use OpenAI's TTS (`tts-1`, ~$15/1M chars) under the same `OPENAI_API_KEY`. Falls under the existing OpenAI billing.
+- `.tts` provider — resolved in §2.1: OpenAI `tts-1` under the same `OPENAI_API_KEY`. Cost ~$15 per 1M characters.
 - `.removebg` — optional. If `REMOVEBG_API_KEY` not set, command politely declines.
 - Future: per-group "AI off" toggle, custom per-group persona, admin web dashboard. Not v1.
 
