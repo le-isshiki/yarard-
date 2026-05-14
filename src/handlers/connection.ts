@@ -27,13 +27,20 @@ export function registerConnectionHandler(
     if (connection === 'close') {
       const code = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
       const isLoggedOut = code === DisconnectReason.loggedOut;
+      const isReplaced = code === DisconnectReason.connectionReplaced;
       logger.warn(
-        { code, isLoggedOut, fails: state.consecutiveFails },
+        { code, isLoggedOut, isReplaced, fails: state.consecutiveFails },
         'whatsapp connection closed',
       );
       if (isLoggedOut) {
         await onLoggedOut();
         return;
+      }
+      if (isReplaced) {
+        logger.fatal(
+          'connection replaced by another session (code 440). Something else is connecting with this auth state — another Koyeb instance, a stale Linked Device, or another bot using the same Neon DB. Exiting to break the reconnect loop.',
+        );
+        process.exit(1);
       }
       state.consecutiveFails += 1;
       if (state.consecutiveFails >= 10) {
