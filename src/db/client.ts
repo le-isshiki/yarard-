@@ -1,8 +1,9 @@
 import { neonConfig, Pool } from '@neondatabase/serverless';
+import ws from 'ws';
 import { getConfig } from '../config.js';
 import { logger } from '../logger.js';
 
-neonConfig.fetchConnectionCache = true;
+neonConfig.webSocketConstructor = ws;
 
 let pool: Pool | null = null;
 
