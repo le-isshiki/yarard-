@@ -47,9 +47,8 @@ export function registerConnectionHandler(
       if (!sock.authState.creds.registered) {
         logger.fatal(
           { code },
-          'connection closed before pairing completed. NOT reconnecting in-process — that would request a fresh pairing code and invalidate the one you are typing. Exiting so the next start issues exactly one stable code. Enter the FIRST code shown after restart, promptly, on the correct phone.',
+          'connection closed before pairing completed. NOT reconnecting in-process and NOT persisting the incomplete pairing state. Exiting so the next start issues exactly one stable code. Enter the FIRST code shown after restart, promptly, on the correct phone.',
         );
-        await flushAuthState();
         process.exit(1);
       }
       state.consecutiveFails += 1;
