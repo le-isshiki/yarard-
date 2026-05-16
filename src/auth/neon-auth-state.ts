@@ -28,6 +28,14 @@ function queueWrite(op: () => Promise<unknown>): void {
     .catch((err) => logger.warn({ err }, 'auth_state persist failed'));
 }
 
+// Await all queued auth-state writes. Must be called before any
+// process.exit() that intends to PRESERVE the session — otherwise
+// queued creds/keys writes are dropped and the next boot reads stale
+// creds, gets logged out, and is forced to re-pair.
+export async function flushAuthState(): Promise<void> {
+  await persistChain.catch(() => {});
+}
+
 async function readKey<T>(key: string): Promise<T | null> {
   const { rows } = await query<{ value: unknown }>(
     `SELECT value FROM auth_state WHERE key = $1`,

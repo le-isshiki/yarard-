@@ -1,6 +1,7 @@
 import type { Boom } from '@hapi/boom';
 import { DisconnectReason, type WASocket } from '@whiskeysockets/baileys';
 import { logger } from '../logger.js';
+import { flushAuthState } from '../auth/neon-auth-state.js';
 
 export interface ConnectionState {
   consecutiveFails: number;
@@ -40,6 +41,7 @@ export function registerConnectionHandler(
         logger.fatal(
           'connection replaced by another session (code 440). Something else is connecting with this auth state — another Koyeb instance, a stale Linked Device, or another bot using the same Neon DB. Exiting to break the reconnect loop.',
         );
+        await flushAuthState();
         process.exit(1);
       }
       if (!sock.authState.creds.registered) {
@@ -47,6 +49,7 @@ export function registerConnectionHandler(
           { code },
           'connection closed before pairing completed. NOT reconnecting in-process — that would request a fresh pairing code and invalidate the one you are typing. Exiting so the next start issues exactly one stable code. Enter the FIRST code shown after restart, promptly, on the correct phone.',
         );
+        await flushAuthState();
         process.exit(1);
       }
       state.consecutiveFails += 1;
@@ -55,6 +58,7 @@ export function registerConnectionHandler(
           { fails: state.consecutiveFails },
           'too many consecutive disconnects — exiting',
         );
+        await flushAuthState();
         process.exit(1);
       }
       await onShouldReconnect();
