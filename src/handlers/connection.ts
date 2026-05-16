@@ -42,6 +42,13 @@ export function registerConnectionHandler(
         );
         process.exit(1);
       }
+      if (!sock.authState.creds.registered) {
+        logger.fatal(
+          { code },
+          'connection closed before pairing completed. NOT reconnecting in-process — that would request a fresh pairing code and invalidate the one you are typing. Exiting so the next start issues exactly one stable code. Enter the FIRST code shown after restart, promptly, on the correct phone.',
+        );
+        process.exit(1);
+      }
       state.consecutiveFails += 1;
       if (state.consecutiveFails >= 10) {
         logger.fatal(
