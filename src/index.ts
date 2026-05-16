@@ -3,7 +3,7 @@ import { startHealthServer } from './server.js';
 import { logger } from './logger.js';
 import { getConfig } from './config.js';
 import { migrate } from './db/migrate.js';
-import { useNeonAuthState } from './auth/neon-auth-state.js';
+import { useNeonAuthState, flushAuthState } from './auth/neon-auth-state.js';
 import { registerCallRejection } from './handlers/calls.js';
 import {
   registerConnectionHandler,
@@ -18,7 +18,7 @@ const cfg = getConfig();
 const connState: ConnectionState = { consecutiveFails: 0 };
 
 async function makeSocket(): Promise<void> {
-  const { state, saveCreds, clear } = await useNeonAuthState();
+  const { state, saveCreds } = await useNeonAuthState();
   const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
@@ -69,9 +69,18 @@ async function makeSocket(): Promise<void> {
     saveCreds,
     connState,
     async () => {
-      logger.warn('logged out — clearing auth_state and exiting');
-      await clear();
-      process.exit(0);
+      // Do NOT auto-truncate auth_state here. WhatsApp returns 401 for
+      // BOTH a real device-removal logout AND transient noise-handshake
+      // "Connection Failure"s (common on flaky/cold hosts). Wiping the
+      // session on the first ambiguous 401 destroys a recoverable
+      // session and forces a full re-pair. Preserve creds and exit: a
+      // spurious 401 self-heals on the next boot via pull login; a
+      // genuine logout needs a deliberate manual `TRUNCATE auth_state`.
+      logger.fatal(
+        'WhatsApp closed the connection with 401. NOT wiping the saved session automatically (a transient handshake 401 would self-heal on restart). If the bot keeps booting and immediately getting 401 with pull:true, the device was genuinely logged out — then, and only then, run `TRUNCATE auth_state;` in Neon and redeploy to re-pair.',
+      );
+      await flushAuthState();
+      process.exit(1);
     },
     async () => {
       const delay = backoffMs(connState.consecutiveFails - 1);
