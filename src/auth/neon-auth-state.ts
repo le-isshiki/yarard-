@@ -28,6 +28,14 @@ function queueWrite(op: () => Promise<unknown>): void {
     .catch((err) => logger.warn({ err }, 'auth_state persist failed'));
 }
 
+// Await all queued auth-state writes. Must be called before any
+// process.exit() that intends to PRESERVE the session — otherwise
+// queued creds/keys writes are dropped and the next boot reads stale
+// creds, gets logged out, and is forced to re-pair.
+export async function flushAuthState(): Promise<void> {
+  await persistChain.catch(() => {});
+}
+
 async function readKey<T>(key: string): Promise<T | null> {
   const { rows } = await query<{ value: unknown }>(
     `SELECT value FROM auth_state WHERE key = $1`,
@@ -151,9 +159,20 @@ export async function useNeonAuthState(): Promise<{
   return {
     state,
     saveCreds: async () => {
+      // Only persist a fully-registered session. During pairing Baileys
+      // fires creds.update with the pairing ephemeral keys while
+      // creds.registered is still false; persisting that half-baked
+      // state poisons the next boot — Baileys logs in with it, WhatsApp
+      // rejects (401), onLoggedOut truncates, and the bot ping-pongs
+      // forever, burning a pairing code each cycle. Incomplete pairing
+      // state must die with the process so the next start is clean.
+      if (!creds.registered) return;
       queueWrite(() => writeKey('creds', creds));
     },
     clear: async () => {
+      // Abandon any queued writes so a pending persist can't re-insert
+      // creds/keys into the table after the TRUNCATE below.
+      persistChain = Promise.resolve();
       cache.clear();
       credsSingleton = null;
       keysCache = null;
