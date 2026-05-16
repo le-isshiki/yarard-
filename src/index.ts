@@ -87,7 +87,7 @@ async function main(): Promise<void> {
   startHealthServer();
   await loadAll();
   await makeSocket();
-  logger.info('theseus-yarard online');
+  logger.info('Angelo online');
 }
 
 main().catch((err) => {
